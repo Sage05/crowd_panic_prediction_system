@@ -1,0 +1,13 @@
+__pycache__/
+*.pyc
+.env
+venv/
+*.pt
+*.weights
+*.mp4
+*.avi
+data/videos/
+node_modules/
+frontend/dist/
+.vscode/
+.DS_Store
