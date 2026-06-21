@@ -1,78 +1,36 @@
-from ultralytics import YOLO
-import cv2
 import csv
+import os
 
-from cv.config import MODEL_PATH, DEVICE, CONFIDENCE, VIDEO_PATH
+from cv.feature_extractor import extract_features
+
+output_file = "data/features.csv"
 
 
-model = YOLO(MODEL_PATH)
+def export_features(tracking_csv="data/tracking_data.csv", out_file=output_file):
+    """
+    Reads tracking_data.csv → extracts features → writes features.csv.
+    This is the handoff file for the ML teammate (Isolation Forest input).
+    """
 
+    features = extract_features(tracking_csv)
 
-def export_data(video_path, output_file):
+    if not features:
+        print("No features to export. Run tracker.py first.")
+        return
 
-    cap = cv2.VideoCapture(video_path)
+    os.makedirs("data", exist_ok=True)
 
-    with open(output_file, "w", newline="") as file:
+    with open(out_file, "w", newline="") as file:
 
-        writer = csv.writer(file)
+        writer = csv.DictWriter(file, fieldnames=features[0].keys())
 
-        writer.writerow([
-            "frame",
-            "person_id",
-            "x_center",
-            "y_center",
-            "width",
-            "height"
-        ])
+        writer.writeheader()
 
-        frame_no = 0
+        writer.writerows(features)
 
-        while cap.isOpened():
-
-            success, frame = cap.read()
-
-            if not success:
-                break
-
-            frame_no += 1
-
-            results = model.track(
-                frame,
-                persist=True,
-                classes=[0],
-                conf=CONFIDENCE,
-                device=DEVICE
-            )
-
-            boxes = results[0].boxes
-
-            if boxes.id is not None:
-
-                ids = boxes.id.cpu().numpy()
-                coords = boxes.xywh.cpu().numpy()
-
-                for pid, box in zip(ids, coords):
-
-                    x, y, w, h = box
-
-                    writer.writerow([
-                        frame_no,
-                        int(pid),
-                        x,
-                        y,
-                        w,
-                        h
-                    ])
-
-    cap.release()
-
-    print(
-        f"Export complete. Saved to {output_file}"
-    )
+    print(f"Exported {len(features)} frames → {out_file}")
 
 
 if __name__ == "__main__":
-    export_data(
-        VIDEO_PATH,
-        "data/tracking_data.csv"
-    )
+
+    export_features()
