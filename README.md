@@ -2,9 +2,9 @@
 
 ## Project Overview
 
-The AI-Based Crowd Panic Prediction System is an intelligent crowd monitoring platform designed to analyze crowd movement, detect abnormal behavior, and assist in predicting panic situations before they escalate into dangerous incidents.
+The AI-Based Crowd Panic Prediction System is an intelligent crowd monitoring platform designed to analyze crowd movement, detect abnormal behavior, and predict panic situations before they escalate into dangerous incidents.
 
-The system combines Computer Vision, Machine Learning, Backend APIs, and a Web Dashboard to create an end-to-end crowd safety solution.
+The system combines Computer Vision, Machine Learning, Backend APIs, and a Web Dashboard into an end-to-end crowd safety pipeline.
 
 ---
 
@@ -20,16 +20,21 @@ YOLOv8 Person Detection
 ByteTrack Person Tracking
         |
         ↓
-Trajectory Extraction
+Speed & Acceleration Extraction
         |
         ↓
-Behavior Analysis
+Trajectory Logging → tracking_data.csv
         |
         ↓
-Panic Prediction Model
+        ├──→ Flat Feature Extraction → features.csv (Isolation Forest)
         |
-        ↓
-Alert & Monitoring Dashboard
+        └──→ Occupancy Grid Sequences → X.npy + y.npy (ConvLSTM2D)
+                |
+                ↓
+        Panic Prediction Model
+                |
+                ↓
+        Alert & Monitoring Dashboard
 ```
 
 ---
@@ -39,34 +44,41 @@ Alert & Monitoring Dashboard
 ```
 panic_prediction_system/
 │
-├── cv/                         # Computer Vision Module
-│   ├── __init__.py             # Makes cv a Python package
-│   ├── config.py               # Centralized model and system settings
-│   ├── detector.py             # YOLOv8 person detection and crowd counting
-│   ├── tracker.py              # ByteTrack multi-person tracking
-│   ├── trajectory_visualizer.py # Displays movement trails for tracked people
-│   ├── export_data.py          # Exports person trajectories to CSV
-│   └── evaluate_images.py      # Evaluates YOLO on ShanghaiTech Part B
+├── cv/                             # Computer Vision Module
+│   ├── __init__.py                 # Makes cv a Python package
+│   ├── config.py                   # Centralized model and system settings
+│   ├── detector.py                 # YOLOv8 person detection and crowd counting
+│   ├── tracker.py                  # ByteTrack multi-person tracking with speed & acceleration
+│   ├── trajectory_visualizer.py    # Displays movement trails for tracked people
+│   ├── feature_extractor.py        # Per-frame crowd feature computation
+│   ├── export_data.py              # Exports flat features to features.csv
+│   ├── grid_exporter.py            # Builds normalized occupancy grid sequences (X.npy, y.npy)
+│   ├── grid_visualizer.py          # Animated heatmap viewer for occupancy grids
+│   ├── evaluate_images.py          # Evaluates YOLO on ShanghaiTech Part B
+│   ├── optical_flow.py             # (Planned) Optical flow analysis
+│   └── main.py                     # Single entry point — runs full CV pipeline
 │
-├── ml/                         # Machine Learning Module
-│   ├── anomaly.py              # Panic/anomaly detection models
-│   ├── features.py             # Feature extraction for ML models
-│   └── predictor.py            # Final panic prediction logic
+├── ml/                             # Machine Learning Module
+│   ├── anomaly.py                  # Isolation Forest anomaly detection
+│   ├── features.py                 # Feature engineering for ML models
+│   └── predictor.py                # ConvLSTM2D panic prediction
 │
-├── backend/                    # FastAPI backend services
+├── backend/                        # FastAPI backend services
 │
-├── frontend/                   # React dashboard
+├── frontend/                       # React dashboard
 │
 ├── data/
-│   ├── samples/                # Sample videos for testing
-│   ├── datasets/               # ShanghaiTech and other datasets
-│   └── results/                # Evaluation output images
+│   ├── samples/                    # Sample videos for testing
+│   ├── datasets/                   # ShanghaiTech and other datasets
+│   ├── results/                    # Evaluation output images
+│   ├── tracking_data.csv           # Raw per-frame tracking output
+│   ├── features.csv                # Flat crowd features (Isolation Forest input)
+│   ├── X.npy                       # Occupancy grid sequences (ConvLSTM2D input)
+│   └── y.npy                       # Sequence labels (ConvLSTM2D supervision)
 │
-├── docs/                       # Documentation and reports
-│
-├── requirements.txt            # Python dependencies
-│
-└── README.md                   # Project documentation
+├── docs/                           # Documentation and reports
+├── requirements.txt                # Python dependencies
+└── README.md                       # Project documentation
 ```
 
 ---
@@ -80,19 +92,10 @@ git clone <repository-url>
 cd panic_prediction_system
 ```
 
----
-
 ## 2. Create Virtual Environment
-
-### Windows CMD
 
 ```cmd
 python -m venv venv
-```
-
-Activate the environment:
-
-```cmd
 venv\Scripts\activate
 ```
 
@@ -102,15 +105,11 @@ Successful activation:
 (venv) M:\panic_prediction_system>
 ```
 
----
-
 ## 3. Install Dependencies
 
 ```bash
 pip install -r requirements.txt
 ```
-
----
 
 ## 4. Verify CUDA Support
 
@@ -127,163 +126,177 @@ CUDA: Enabled
 
 ---
 
-# Running the Computer Vision Module
+# Running the CV Module
 
-Make sure the terminal is opened in the project root:
+All commands must be run from the project root (`panic_prediction_system/`).
+
+---
+
+## Full Pipeline (Recommended)
+
+Runs all CV steps in order — tracking → feature export → grid export.
+
+```bash
+python -m cv.main
+```
+
+Output files:
 
 ```
-panic_prediction_system/
+data/tracking_data.csv   — raw per-frame detections
+data/features.csv        — flat crowd features (Isolation Forest input)
+data/X.npy               — occupancy grid sequences (ConvLSTM2D input)
+data/y.npy               — sequence labels (ConvLSTM2D supervision)
 ```
 
 ---
 
-## Person Detection
+## Individual Modules
 
-Runs YOLOv8 detection and displays crowd count.
-
+### Person Detection
 ```bash
 python -m cv.detector
 ```
 
----
-
-## Person Tracking
-
-Tracks individuals with persistent IDs using ByteTrack.
-
+### Person Tracking
+Tracks individuals with persistent IDs. Logs speed, acceleration, and trajectories.
 ```bash
 python -m cv.tracker
 ```
 
----
-
-## Trajectory Visualization
-
-Displays movement paths of tracked people.
-
+### Trajectory Visualization
 ```bash
 python -m cv.trajectory_visualizer
 ```
 
----
-
-## Export Tracking Data
-
-Creates CSV files containing person IDs and coordinates.
-
+### Feature Export (Isolation Forest input)
 ```bash
 python -m cv.export_data
 ```
 
-Output:
-
+### Grid Export (ConvLSTM2D input)
+```bash
+python -m cv.grid_exporter
 ```
-data/tracking_data.csv
+
+### Grid Visualizer
+Plays back the 10×10 occupancy grid as an animated heatmap. Press `N` / `P` to navigate sequences, `ESC` to quit.
+```bash
+python -m cv.grid_visualizer
 ```
 
----
-
-## Evaluate on ShanghaiTech Part B
-
-Runs YOLO on the crowd counting dataset and saves annotated results.
-
+### Evaluate on ShanghaiTech Part B
 ```bash
 python -m cv.evaluate_images
 ```
 
-Output:
+---
 
-```
-data/results/
-```
+# CV Module — Data Flow
+
+## tracker.py → tracking_data.csv
+
+Columns:
+
+| Column | Description |
+|--------|-------------|
+| frame | Frame number |
+| person_id | Unique tracked person ID |
+| center_x | X coordinate of bounding box center |
+| center_y | Y coordinate of bounding box center |
+| speed | Pixels moved since last frame |
+| acceleration | Change in speed since last frame |
+
+---
+
+## feature_extractor.py → features.csv (via export_data.py)
+
+Per-frame crowd features fed into Isolation Forest:
+
+| Feature | Description |
+|---------|-------------|
+| people_count | Total people detected |
+| avg_speed | Mean speed across all people |
+| avg_speed_squared | Mean squared speed (energy proxy) |
+| crowd_density | People per unit area |
+| avg_acceleration | Mean acceleration across all people |
+| moving_count | People moving above threshold |
+| stationary_count | People below movement threshold |
+
+---
+
+## grid_exporter.py → X.npy + y.npy
+
+Builds spatiotemporal occupancy grids for ConvLSTM2D:
+
+- **Frame size:** 640×640 pixels
+- **Grid:** 10×10 cells (each cell = 64×64 pixels)
+- **Sampling:** Every 3rd frame (frames 1, 4, 7 … → 10 timesteps)
+- **Normalization:** Min-max across all frames → [0, 1]
+- **Sequence mode:** Overlapping (sliding window) or non-overlapping (configurable)
+- **X shape:** `(N, 10, 10, 10, 1)` — batch, timesteps, grid height, grid width, channels
+- **y shape:** `(N,)` — total occupancy in last frame of each sequence
 
 ---
 
 # Model Evaluation
 
-The Computer Vision module was evaluated using the ShanghaiTech Part B dataset.
+Evaluated on the ShanghaiTech Part B dataset.
 
-## Models Tested
-
-- YOLOv8n (Nano)
-- YOLOv8s (Small)
-
-### Evaluation Summary
-
-| Model | Speed | Detection Quality | Final Decision |
-|-------|-------|-------------------|----------------|
+| Model | Speed | Detection Quality | Decision |
+|-------|-------|-------------------|----------|
 | YOLOv8n | Very Fast | Comparable to YOLOv8s | ✅ Selected |
-| YOLOv8s | Slower | Similar detection results | ❌ Not selected |
+| YOLOv8s | Slower | Similar results | ❌ Not selected |
 
-YOLOv8n was selected because it provided similar detection performance while maintaining better real-time speed, making it more suitable for a live CCTV-based panic monitoring system.
+YOLOv8n was selected for its real-time performance, which is critical for live CCTV-based monitoring.
 
 ---
 
 # Technologies Used
 
-## Computer Vision
-
-- YOLOv8
-- ByteTrack
-- OpenCV
-
-## Machine Learning
-
-- PyTorch
-- ConvLSTM (planned)
-- Anomaly Detection Models
-
-## Backend
-
-- FastAPI
-- Python
-
-## Frontend
-
-- React.js
-
-## Hardware Acceleration
-
-- NVIDIA CUDA
-- RTX GPU support
+| Layer | Technologies |
+|-------|-------------|
+| Computer Vision | YOLOv8, ByteTrack, OpenCV |
+| Machine Learning | PyTorch, Isolation Forest, ConvLSTM2D (planned) |
+| Backend | FastAPI, Python |
+| Frontend | React.js |
+| Hardware | NVIDIA CUDA, RTX GPU |
 
 ---
 
 # Current Progress
 
-## Completed
-
+## Computer Vision
 - [x] CUDA-enabled YOLOv8 setup
 - [x] Real-time person detection
 - [x] Crowd counting
-- [x] ByteTrack person tracking
-- [x] Trajectory visualization
-- [x] CSV trajectory export
+- [x] ByteTrack person tracking with persistent IDs
+- [x] Speed and acceleration tracking per person
+- [x] Trajectory visualization and logging
+- [x] CSV trajectory export (tracking_data.csv)
+- [x] Flat feature extraction for Isolation Forest (features.csv)
+- [x] Normalized occupancy grid sequences for ConvLSTM2D (X.npy, y.npy)
+- [x] Occupancy grid visualizer (animated heatmap)
 - [x] ShanghaiTech Part B evaluation
-- [x] YOLOv8 model comparison
+- [x] YOLOv8 model comparison (nano vs small)
+- [x] Full pipeline runner (main.py)
 
-## In Progress
+## Machine Learning
+- [ ] Isolation Forest anomaly detection
+- [ ] ConvLSTM2D panic prediction
+- [ ] Model training and evaluation
 
-- [ ] ML anomaly detection
-- [ ] ConvLSTM panic prediction
-- [ ] Backend API integration
-- [ ] Frontend dashboard
-
----
-
-# Future Improvements
-
-- Improve dense crowd detection
-- Integrate live CCTV streams
-- Add real-time panic risk scores
-- Deploy as a complete web-based monitoring system
+## Backend & Frontend
+- [ ] FastAPI backend integration
+- [ ] React dashboard
+- [ ] Live alert system
 
 ---
 
 # Team Responsibilities
 
 | Member | Responsibility |
-|---------|---------------|
-| Ayuj | Computer Vision (YOLO, tracking, trajectories, evaluation) |
-| Neeraj | Machine Learning and panic prediction |
+|--------|---------------|
+| Ayuj | Computer Vision — detection, tracking, feature extraction, grid export |
+| Neeraj | Machine Learning — Isolation Forest, ConvLSTM2D, panic prediction |
 | Darshit | Backend APIs and frontend dashboard |
