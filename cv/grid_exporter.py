@@ -23,28 +23,61 @@ tracking_csv  = "data/tracking_data.csv"
 output_X_file = "data/X.npy"
 output_y_file = "data/y.npy"
 
-# Set to True for sliding window (overlapping), False for non-overlapping chunks
+# True = sliding window (more samples), False = fully disjoint X/Y blocks
 OVERLAPPING = True
 
 
 # -----------------------------
-# Step 1 — Build occupancy grid per frame
+# Step 1 — Build density grid per frame (Neeraj's overlap-ratio formula)
 # -----------------------------
 
-def build_occupancy_grid(people):
+def build_density_grid(boxes):
     """
-    Returns a 10x10 grid where each cell = number of people in it (raw count).
-    Normalization happens later across the full dataset.
+    Each cell value = sum of (overlap area between YOLO box and cell) / (YOLO box area)
+    for all boxes that overlap with that cell.
+
+    This avoids a nearly-empty grid when people span multiple cells.
+
+    boxes: list of (x1, y1, x2, y2) in pixel coordinates
+    Returns: np.array of shape (GRID_ROWS, GRID_COLS)
     """
 
     grid = np.zeros((GRID_ROWS, GRID_COLS), dtype=np.float32)
 
-    for cx, cy in people:
+    for (x1, y1, x2, y2) in boxes:
 
-        col = min(int(cx // CELL_W), GRID_COLS - 1)
-        row = min(int(cy // CELL_H), GRID_ROWS - 1)
+        box_area = (x2 - x1) * (y2 - y1)
 
-        grid[row][col] += 1.0    # count, not binary
+        if box_area <= 0:
+            continue
+
+        # Which cells does this box touch?
+        col_start = max(0, int(x1 // CELL_W))
+        col_end   = min(GRID_COLS - 1, int(x2 // CELL_W))
+        row_start = max(0, int(y1 // CELL_H))
+        row_end   = min(GRID_ROWS - 1, int(y2 // CELL_H))
+
+        for row in range(row_start, row_end + 1):
+            for col in range(col_start, col_end + 1):
+
+                # Cell boundaries
+                cell_x1 = col * CELL_W
+                cell_y1 = row * CELL_H
+                cell_x2 = cell_x1 + CELL_W
+                cell_y2 = cell_y1 + CELL_H
+
+                # Overlap rectangle
+                overlap_x1 = max(x1, cell_x1)
+                overlap_y1 = max(y1, cell_y1)
+                overlap_x2 = min(x2, cell_x2)
+                overlap_y2 = min(y2, cell_y2)
+
+                overlap_w = max(0, overlap_x2 - overlap_x1)
+                overlap_h = max(0, overlap_y2 - overlap_y1)
+                overlap_area = overlap_w * overlap_h
+
+                # Add ratio of box that falls in this cell
+                grid[row][col] += overlap_area / box_area
 
     return grid
 
@@ -55,7 +88,8 @@ def build_occupancy_grid(people):
 
 def load_frames(csv_path):
     """
-    Returns { frame_number: [(cx, cy), ...] }
+    Returns { frame_number: [(x1, y1, x2, y2), ...] }
+    Reads full bounding box coordinates for overlap-ratio calculation.
     """
 
     frames = defaultdict(list)
@@ -67,10 +101,13 @@ def load_frames(csv_path):
         for row in reader:
 
             frame = int(row["frame"])
-            cx    = float(row["center_x"])
-            cy    = float(row["center_y"])
 
-            frames[frame].append((cx, cy))
+            x1 = float(row["x1"])
+            y1 = float(row["y1"])
+            x2 = float(row["x2"])
+            y2 = float(row["y2"])
+
+            frames[frame].append((x1, y1, x2, y2))
 
     return frames
 
@@ -81,60 +118,56 @@ def load_frames(csv_path):
 
 def normalize_grids(grids):
     """
-    Min-max normalizes the full list of grids to [0, 1].
-    Uses global max so all grids are on the same scale.
+    Min-max normalizes across all grids to [0, 1] using global max.
     """
 
-    stacked = np.stack(grids, axis=0)    # (total_frames, 10, 10)
-
+    stacked = np.stack(grids, axis=0)
     max_val = stacked.max()
 
     if max_val == 0:
-        return grids    # avoid divide by zero if video is empty
+        return grids
 
-    normalized = [g / max_val for g in grids]
-
-    return normalized
+    return [g / max_val for g in grids]
 
 
 # -----------------------------
-# Step 4 — Build sequences
+# Step 4 — Build X → Y sequences (Neeraj's spec)
 # -----------------------------
 
 def build_sequences(grids, overlapping=OVERLAPPING):
     """
-    Groups grids into sequences of length TIMESTEPS.
+    X = grids[i : i + TIMESTEPS]              → input (past second)
+    Y = grids[i + TIMESTEPS : i + 2*TIMESTEPS] → target (next second to predict)
 
-    overlapping=True  → sliding window (step=1), more data, sequences share frames
-    overlapping=False → non-overlapping chunks (step=TIMESTEPS), less data, fully independent
+    overlapping=True  → step=1, sliding window, lots of samples
+    overlapping=False → step=2*TIMESTEPS, fully disjoint X/Y blocks
 
     X shape: (N, TIMESTEPS, GRID_ROWS, GRID_COLS, 1)
-    y shape: (N,) — total people count in the last frame of each sequence (proxy label)
+    Y shape: (N, TIMESTEPS, GRID_ROWS, GRID_COLS, 1)
     """
 
-    step = 1 if overlapping else TIMESTEPS
+    step = 1 if overlapping else 2 * TIMESTEPS
 
     X = []
-    y = []
+    Y = []
 
-    for i in range(0, len(grids) - TIMESTEPS, step):
+    for i in range(0, len(grids) - 2 * TIMESTEPS + 1, step):
 
-        window = grids[i : i + TIMESTEPS]         # list of 10 grids
+        x_window = grids[i : i + TIMESTEPS]
+        y_window = grids[i + TIMESTEPS : i + 2 * TIMESTEPS]
 
-        sequence = np.stack(window, axis=0)        # (10, 10, 10)
-        sequence = sequence[..., np.newaxis]       # (10, 10, 10, 1)
+        x_seq = np.stack(x_window, axis=0)[..., np.newaxis]   # (10, 10, 10, 1)
+        y_seq = np.stack(y_window, axis=0)[..., np.newaxis]   # (10, 10, 10, 1)
 
-        X.append(sequence)
-
-        # Label = total occupancy in the last frame of the sequence
-        label = float(grids[i + TIMESTEPS - 1].sum())
-        y.append(label)
+        X.append(x_seq)
+        Y.append(y_seq)
 
     if not X:
-        print(f"Not enough frames. Need at least {TIMESTEPS * FRAME_STEP} frames.")
+        min_frames = 2 * TIMESTEPS * FRAME_STEP
+        print(f"Not enough frames. Need at least {min_frames} sampled frames.")
         return None, None
 
-    return np.stack(X, axis=0), np.array(y, dtype=np.float32)
+    return np.stack(X, axis=0), np.stack(Y, axis=0)
 
 
 # -----------------------------
@@ -162,17 +195,18 @@ def export_grid(
 
     print(f"Sampled {len(sampled)} frames (every {FRAME_STEP}rd frame)")
 
-    # Build raw count grids
-    grids = [build_occupancy_grid(frames[f]) for f in sampled]
+    # Build density grids using overlap-ratio formula
+    print("Building density grids (overlap-ratio)...")
+    grids = [build_density_grid(frames[f]) for f in sampled]
 
     # Normalize across all grids
     print("Normalizing grids...")
     grids = normalize_grids(grids)
 
-    # Build sequences
+    # Build X → Y sequences
     mode = "overlapping" if overlapping else "non-overlapping"
-    print(f"Building {mode} sequences...")
-    X, y = build_sequences(grids, overlapping=overlapping)
+    print(f"Building {mode} sequences (X predicts Y)...")
+    X, Y = build_sequences(grids, overlapping=overlapping)
 
     if X is None:
         return
@@ -180,12 +214,13 @@ def export_grid(
     os.makedirs("data", exist_ok=True)
 
     np.save(out_X, X)
-    np.save(out_y, y)
+    np.save(out_y, Y)
 
     print(f"\nExported successfully ({mode} mode).")
     print(f"  X shape : {X.shape}   → {out_X}")
-    print(f"  y shape : {y.shape}   → {out_y}")
-    print(f"\n  → Feed X into ConvLSTM2D, y as supervision labels.")
+    print(f"  Y shape : {Y.shape}   → {out_y}")
+    print(f"\n  X = input sequences (past {TIMESTEPS} sampled frames)")
+    print(f"  Y = target sequences (next {TIMESTEPS} sampled frames to predict)")
 
 
 if __name__ == "__main__":
