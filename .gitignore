@@ -1,13 +1,45 @@
+# Python
 __pycache__/
 *.pyc
-.env
+*.pyo
+
+# Virtual Environment
 venv/
+
+# VS Code
+.vscode/
+
+# Environment Variables
+.env
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# YOLO Model Files
 *.pt
 *.weights
+
+# Videos and Images
 *.mp4
 *.avi
-data/videos/
+*.mov
+
+# Datasets
+data/datasets/
+
+# Generated Results
+data/results/
+
+# Logs
+*.log
+
+# Frontend Dependencies
 node_modules/
-frontend/dist/
-.vscode/
-.DS_Store
+
+# Build Files
+dist/
+build/
+
+# Generated tracking output
+data/tracking_data.csv
