@@ -3,6 +3,7 @@ import cv2
 import math
 import csv
 import os
+import time
 from collections import defaultdict
 
 from cv.config import (
@@ -28,8 +29,6 @@ tracking_data = {}
 
 csv_file = "data/tracking_data.csv"
 
-fps = 0
-
 
 def initialize_csv():
 
@@ -42,6 +41,10 @@ def initialize_csv():
         writer.writerow([
             "frame",
             "person_id",
+            "x1",
+            "y1",
+            "x2",
+            "y2",
             "center_x",
             "center_y",
             "speed",
@@ -69,6 +72,8 @@ def track_crowd(video_path):
     cap = cv2.VideoCapture(video_path)
 
     frame_number = 0
+    fps = 0
+    prev_time = time.time()
 
     while cap.isOpened():
 
@@ -78,6 +83,11 @@ def track_crowd(video_path):
             break
 
         frame_number += 1
+
+        # Real FPS calculation
+        curr_time = time.time()
+        fps = 1.0 / (curr_time - prev_time) if (curr_time - prev_time) > 0 else 0
+        prev_time = curr_time
 
         results = model.track(
             frame,
@@ -93,8 +103,7 @@ def track_crowd(video_path):
 
         if results[0].boxes.id is not None:
 
-            ids = results[0].boxes.id.int().cpu().tolist()
-
+            ids  = results[0].boxes.id.int().cpu().tolist()
             boxes = results[0].boxes.xyxy.cpu().tolist()
 
             for person_id, box in zip(ids, boxes):
@@ -107,7 +116,6 @@ def track_crowd(video_path):
                 )
 
                 speed = 0
-
                 acceleration = 0
 
                 if person_id in previous_centers:
@@ -130,7 +138,6 @@ def track_crowd(video_path):
                 track_history[person_id].append(center)
 
                 if len(track_history[person_id]) > 100:
-
                     track_history[person_id].pop(0)
 
                 history = track_history[person_id]
@@ -146,13 +153,9 @@ def track_crowd(video_path):
                     )
 
                 tracking_data[person_id] = {
-
                     "center": center,
-
                     "speed": speed,
-
                     "acceleration": acceleration
-
                 }
 
                 with open(csv_file, "a", newline="") as file:
@@ -160,55 +163,36 @@ def track_crowd(video_path):
                     writer = csv.writer(file)
 
                     writer.writerow([
-
                         frame_number,
-
                         person_id,
-
+                        round(x1, 2),
+                        round(y1, 2),
+                        round(x2, 2),
+                        round(y2, 2),
                         center[0],
-
                         center[1],
-
                         round(speed, 2),
-
                         round(acceleration, 2)
-
                     ])
 
         cv2.putText(
-
             output,
-
             f"Tracked People : {count}",
-
             (20, 40),
-
             cv2.FONT_HERSHEY_SIMPLEX,
-
             1,
-
             (0, 255, 0),
-
             2
-
         )
 
         cv2.putText(
-
             output,
-
             f"FPS : {fps:.2f}",
-
             (20, 80),
-
             cv2.FONT_HERSHEY_SIMPLEX,
-
             1,
-
             (0, 255, 255),
-
             2
-
         )
 
         cv2.imshow("Crowd Tracking", output)
@@ -217,7 +201,6 @@ def track_crowd(video_path):
             break
 
     cap.release()
-
     cv2.destroyAllWindows()
 
     return tracking_data
