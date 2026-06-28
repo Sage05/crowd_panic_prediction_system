@@ -166,11 +166,12 @@ class Camera:
         max_retained_history = 120
         if len(self.grid_history) > max_retained_history:
             self.grid_history = self.grid_history[-self.context_size:]
-
+        forecasted_sequence = predicted_target[0, :, :, :, 0].tolist()
         return {
             "camera_id": self.camera_id,
             "is_anomaly": is_anomaly,
             "consecutive_breaches": self.consecutive_breaches,
             "window_mse": float(current_window_mse),
             "adaptive_threshold": float(adaptive_threshold),
+            "forecasted_grids": forecasted_sequence,
         }
