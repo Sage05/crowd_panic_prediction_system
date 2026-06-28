@@ -1,76 +1,82 @@
 import numpy as np
 from sklearn.ensemble import IsolationForest
 
-def calculate_grid_density(yolo_boxes, grid_shape=(10, 10), image_shape=(1080, 1920)):
+def extract_frame_features(current_yolo_boxes, previous_yolo_boxes=None, fps=30):
     """
-    Takes raw YOLO bounding boxes and distributes their weights across a grid 
-    based on the percentage of area overlapping each cell.
+    Extracts high-level behavioral features from raw YOLO boxes for a single frame.
     
     yolo_boxes: List of coordinates [[x_min, y_min, x_max, y_max], ...]
     """
-    grid_h, grid_w = grid_shape
-    img_h, img_w = image_shape
+    # Feature 1: Total count of people in the current frame
+    people_count = len(current_yolo_boxes)
     
-    density_matrix = np.zeros((grid_h, grid_w))
+    # Feature 2: Average velocity of the crowd
+    mean_velocity = 0.0
     
-    cell_h = img_h / grid_h
-    cell_w = img_w / grid_w
-    
-    for box in yolo_boxes:
-        x_min, y_min, x_max, y_max = box
-        box_area = (x_max - x_min) * (y_max - y_min)
-        if box_area <= 0:
-            continue
+    if previous_yolo_boxes is not None and len(previous_yolo_boxes) > 0 and people_count > 0:
+        current_centers = []
+        for box in current_yolo_boxes:
+            # Calculate center points (x, y)
+            cx = (box[0] + box[2]) / 2
+            cy = (box[1] + box[3]) / 2
+            current_centers.append((cx, cy))
             
-        start_row = int(y_min // cell_h)
-        end_row = int(y_max // cell_h)
-        start_col = int(x_min // cell_w)
-        end_col = int(x_max // cell_w)
-        
-        start_row, end_row = max(0, start_row), min(grid_h - 1, end_row)
-        start_col, end_col = max(0, start_col), min(grid_w - 1, end_col)
-        
-        for r in range(start_row, end_row + 1):
-            for c in range(start_col, end_col + 1):
-                int_x_min = max(x_min, c * cell_w)
-                int_y_min = max(y_min, r * cell_h)
-                int_x_max = min(x_max, (c + 1) * cell_w)
-                int_y_max = min(y_max, (r + 1) * cell_h)
-                
-                int_area = max(0, int_x_max - int_x_min) * max(0, int_y_max - int_y_min)
-                
-                overlap_ratio = int_area / box_area
-                density_matrix[r, c] += overlap_ratio
-                
-    return density_matrix
-                
-def detect_panic_baseline(flat_grid_data):
+        prev_centers = []
+        for box in previous_yolo_boxes:
+            cx = (box[0] + box[2]) / 2
+            cy = (box[1] + box[3]) / 2
+            prev_centers.append((cx, cy))
+            
+        # Match displacements (simplification for baseline tracking)
+        distances = []
+        for curr in current_centers:
+            # Find the closest person in the previous frame to calculate their individual movement
+            min_dist = min([np.sqrt((curr[0] - p[0])**2 + (curr[1] - p[1])**2) for p in prev_centers])
+            distances.append(min_dist)
+            
+        # Velocity = displacement * FPS (pixels per second)
+        mean_velocity = np.mean(distances) * fps
+
+    return [people_count, mean_velocity]
+
+
+def run_engineered_baseline(video_features):
     """
-    Baseline Isolation Forest model. 
-    Trains on incoming grid features and flags abnormal frames.
-    Returns: 1 for normal frame, -1 for anomaly/potential panic.
+    Trains and runs the Isolation Forest on structural crowd features.
+    video_features: Array of shape (Total_Frames, 2) -> [people_count, mean_velocity]
     """
+    # 5% contamination assumes 5% of our dataset might contain sudden panic spikes
     model = IsolationForest(contamination=0.05, random_state=42)
-    model.fit(flat_grid_data)
-    return model.predict(flat_grid_data)
+    
+    # Train directly on the 2 macro features
+    model.fit(video_features)
+    predictions = model.predict(video_features)
+    
+    return predictions
+
 
 if __name__ == "__main__":
-    print("--- Testing Step 1: Grid Density Matrix Generation ---")
-    mock_yolo_boxes = [
-        [900, 500, 1000, 600], 
-        [950, 520, 1050, 620]
-    ]
+    print("--- Testing Real Baseline Feature Extraction ---")
     
-    density_map = calculate_grid_density(mock_yolo_boxes, grid_shape=(10, 10))
-    print("Generated 10x10 Grid Layout (showing non-zero cells):")
-    print(np.round(density_map[4:7, 4:7], 2))
+    # Frame 1: Normal dense crowd standing still
+    frame1_boxes = [[100, 100, 150, 200], [200, 100, 250, 200], [300, 100, 350, 200]]
     
-    print("\n--- Testing Step 2: Isolation Forest Baseline ---")
-    normal_frame = np.ones(100) * 0.1
-    panic_frame = np.ones(100) * 4.5
+    # Frame 2: Same crowd suddenly moves rapidly (Panic state simulation)
+    frame2_boxes = [[150, 100, 200, 200], [280, 100, 330, 200], [420, 100, 470, 200]]
     
-    mock_dataset = np.array([normal_frame, normal_frame, panic_frame, normal_frame, normal_frame])
+    feat_normal = extract_frame_features(frame1_boxes, previous_yolo_boxes=None)
+    feat_panic = extract_frame_features(frame2_boxes, previous_yolo_boxes=frame1_boxes)
     
-    predictions = detect_panic_baseline(mock_dataset)
-    print("Frame analysis results (1 = Normal, -1 = Panic Anomaly):")
-    print(predictions)
+    print(f"Normal Frame Metrics [Count, Avg Velocity]: {feat_normal}")
+    print(f"Panic Frame Metrics  [Count, Avg Velocity]: {feat_panic}")
+    
+    # Mocking a video feature dataset matrix
+    mock_video_features = np.array([
+        [30, 5.0],  # Normal
+        [32, 4.8],  # Normal
+        [31, 62.1], # Anomaly (Sudden high velocity crowd burst)
+        [29, 5.2],  # Normal
+    ])
+    
+    decisions = run_engineered_baseline(mock_video_features)
+    print(f"\nBaseline Isolation Forest Predictions: {decisions}")
