@@ -1,0 +1,401 @@
+/* =============================================================================
+   PanicPredictionDashboard.css
+   Static styling + responsive layout for the Sentinel dashboard.
+   Data-driven values (risk colors, bar widths, gauge fill) stay inline in JSX.
+   ========================================================================== */
+
+:root {
+  --ppd-bg:          #0a0d12;
+  --ppd-panel:       #11151d;
+  --ppd-panel2:      #0e1218;
+  --ppd-border:      #1d2530;
+  --ppd-border-soft: #161c25;
+  --ppd-text:        #e9edf2;
+  --ppd-text-dim:    #8a929e;
+  --ppd-text-faint:  #5a626d;
+  --ppd-amber:       #e0a72c;
+  --ppd-amber-soft:  #3a2f17;
+  --ppd-green:       #3fae7e;
+  --ppd-green-soft:  #16271f;
+  --ppd-red:         #e0574f;
+  --ppd-red-soft:    #2c1818;
+  --ppd-blue:        #5b9bd5;
+  --ppd-mono: 'JetBrains Mono','SF Mono','Fira Code',ui-monospace,Menlo,monospace;
+  --ppd-sans: 'Inter',system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+
+  /* fluid spacing tokens — scale with viewport, clamped at both ends */
+  --ppd-gap: clamp(8px, 1.1vw, 12px);
+  --ppd-pad: clamp(12px, 1.4vw, 16px);
+  --ppd-radius: 12px;
+
+  /* one easing curve used everywhere for a consistent, light feel */
+  --ppd-ease: cubic-bezier(.22, .61, .36, 1);
+}
+
+/* ------------------------------- root shell ------------------------------ */
+/* page reset so there's no body margin gap and the dark bg covers edge-to-edge */
+html, body, #root { margin: 0; padding: 0; background: var(--ppd-bg); }
+
+.ppd, .ppd * { box-sizing: border-box; }
+.ppd {
+  background: var(--ppd-bg);
+  color: var(--ppd-text);
+  font-family: var(--ppd-sans);
+  font-size: clamp(12px, 1.05vw, 13px);
+  min-height: 100vh;
+  min-height: 100dvh;            /* avoids mobile browser-chrome jump */
+  width: 100%;
+  max-width: 1760px;            /* stops content over-stretching on ultrawide */
+  margin-inline: auto;          /* ...and centers it when capped */
+  overflow-x: hidden;            /* no horizontal scroll on small screens */
+  padding: var(--ppd-pad);
+  display: flex;
+  flex-direction: column;
+  gap: var(--ppd-gap);
+}
+.ppd button { cursor: pointer; font-family: inherit; }
+
+.ppd ::-webkit-scrollbar { width: 6px; height: 6px; }
+.ppd ::-webkit-scrollbar-thumb { background: var(--ppd-border); border-radius: 9px; }
+
+@keyframes ppd-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .3; } }
+
+/* utility atoms */
+.ppd-mono { font-family: var(--ppd-mono); }
+.ppd-dim  { color: var(--ppd-text-dim); }
+.ppd-dot  { display: inline-block; width: 7px; height: 7px; border-radius: 50%; flex: none; }
+.ppd-dot--pulse { animation: ppd-pulse 1.6s ease-in-out infinite; }
+
+/* track + fill bar — only width animates, GPU-friendly and cheap */
+.ppd-bar { border-radius: 99px; background: var(--ppd-border-soft); overflow: hidden; }
+.ppd-bar__fill {
+  height: 100%; border-radius: 99px;
+  transition: width .45s var(--ppd-ease), background-color .35s var(--ppd-ease);
+}
+
+/* --------------------------------- panel --------------------------------- */
+.ppd-panel {
+  background: var(--ppd-panel);
+  border: 1px solid var(--ppd-border);
+  border-radius: var(--ppd-radius);
+  padding: var(--ppd-pad);
+  min-width: 0;                 /* lets grid children shrink instead of overflow */
+}
+.ppd-kicker { font-size: 11px; color: var(--ppd-text-dim); margin-bottom: 6px; }
+.ppd-card-head {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 14px 16px; font-size: 13px; font-weight: 600;
+}
+.ppd-count-badge {
+  background: var(--ppd-panel2); border: 1px solid var(--ppd-border);
+  border-radius: 99px; padding: 1px 9px; font-size: 11px;
+  color: var(--ppd-text-dim); font-family: var(--ppd-mono);
+}
+
+/* -------------------------------- header --------------------------------- */
+.ppd-header {
+  display: flex; justify-content: space-between; align-items: center;
+  flex-wrap: wrap; gap: 12px;
+  background: var(--ppd-panel); border: 1px solid var(--ppd-border);
+  border-radius: var(--ppd-radius); padding: 12px clamp(12px, 1.6vw, 18px);
+}
+.ppd-header__brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+.ppd-logo {
+  width: 34px; height: 34px; border-radius: 9px; background: var(--ppd-panel2);
+  border: 1px solid var(--ppd-border); display: grid; place-items: center; flex: none;
+}
+.ppd-logo__ring { width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--ppd-amber); }
+.ppd-title { font-weight: 700; font-size: 15px; letter-spacing: .3px; }
+.ppd-subtitle {
+  font-size: 11px; color: var(--ppd-text-dim); font-family: var(--ppd-mono);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+.ppd-scenario-wrap {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
+  background: var(--ppd-panel2); padding: 5px; border-radius: 9px;
+  border: 1px solid var(--ppd-border-soft);
+}
+.ppd-scenario-label { font-size: 11px; color: var(--ppd-text-dim); margin-right: 4px; }
+.ppd-scenario-btn {
+  display: flex; align-items: center; gap: 7px; font-size: 12.5px;
+  padding: 6px 12px; border-radius: 7px; border: 1px solid transparent;
+  background: transparent; color: var(--ppd-text-dim);
+  transition: color .25s var(--ppd-ease), background-color .25s var(--ppd-ease),
+              border-color .25s var(--ppd-ease);
+}
+
+.ppd-header__right { display: flex; align-items: center; gap: clamp(12px, 2vw, 22px); flex-wrap: wrap; }
+.ppd-model { display: flex; align-items: center; gap: 8px; font-size: 12px; }
+.ppd-clock { text-align: right; font-family: var(--ppd-mono); }
+.ppd-clock__time { font-size: clamp(16px, 2.4vw, 20px); font-weight: 600; letter-spacing: 1px; }
+.ppd-clock__date { font-size: 10.5px; color: var(--ppd-text-dim); }
+
+/* -------------------------------- layout --------------------------------- */
+.ppd-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.95fr) minmax(300px, 1fr);
+  gap: var(--ppd-gap); align-items: stretch;
+}
+.ppd-col { display: flex; flex-direction: column; gap: var(--ppd-gap); min-width: 0; }
+/* cam cards reflow automatically: 3 wide -> 2 -> 1 as space shrinks */
+.ppd-cam-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--ppd-gap); }
+.ppd-bottom-row { display: grid; grid-template-columns: 1.6fr 1fr 1.2fr; gap: var(--ppd-gap); }
+
+/* --------------------------------- CCTV ---------------------------------- */
+.ppd-cctv {
+  position: relative; overflow: hidden; padding: 0;
+  min-height: clamp(240px, 30vw, 440px);   /* grows with width, capped */
+  max-height: 58vh;                         /* never dominates tall windows */
+}
+.ppd-feed-bg {
+  position: absolute; inset: 0;
+  background: radial-gradient(120% 90% at 60% 40%, #141a22 0%, var(--ppd-panel2) 55%, #080b0f 100%);
+}
+/* boxes are stable per scenario now, so only color animates (cheap) */
+.ppd-feed-box {
+  position: absolute; border-radius: 2px;
+  transition: border-color .4s var(--ppd-ease), box-shadow .4s var(--ppd-ease);
+  will-change: border-color;
+}
+.ppd-feed-topbar {
+  position: absolute; top: 0; left: 0; right: 0; z-index: 2;
+  display: flex; justify-content: space-between; align-items: flex-start;
+  gap: 8px; padding: 14px; flex-wrap: wrap;
+}
+.ppd-feed-bottom {
+  position: absolute; bottom: 14px; left: 14px; right: 14px; z-index: 2;
+  display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap;
+}
+.ppd-feed-watermark {
+  position: absolute; inset: 0; z-index: 1; display: grid; place-items: center;
+  color: #ffffff10; font-family: var(--ppd-mono);
+  font-size: clamp(10px, 1.3vw, 13px); letter-spacing: 4px; text-align: center; padding: 0 12px;
+}
+.ppd-rec-pill {
+  display: flex; align-items: center; gap: 6px; font-family: var(--ppd-mono);
+  font-size: 12px; color: var(--ppd-red); background: var(--ppd-red-soft);
+  padding: 3px 9px; border-radius: 6px; border: 1px solid #e0574f33; white-space: nowrap;
+}
+.ppd-chip {
+  font-size: 11.5px; color: var(--ppd-text-dim); background: #0b0f14cc;
+  padding: 5px 10px; border-radius: 7px; border: 1px solid var(--ppd-border-soft);
+  backdrop-filter: blur(4px); white-space: nowrap;
+}
+
+/* ------------------------------- cam cards ------------------------------- */
+.ppd-cam-card {
+  padding: 16px; display: flex; flex-direction: column;
+  justify-content: space-between; gap: 18px; min-height: 104px;
+}
+.ppd-cam-label { display: flex; align-items: center; gap: 8px; font-family: var(--ppd-mono); font-size: 12px; color: var(--ppd-text-dim); }
+.ppd-row-between { display: flex; justify-content: space-between; }
+
+/* ------------------------------ status card ------------------------------ */
+.ppd-status { display: flex; justify-content: space-between; gap: 12px; padding: 18px; }
+.ppd-status__big { font-size: clamp(17px, 2.6vw, 22px); font-weight: 700; transition: color .35s var(--ppd-ease); }
+
+/* ------------------------------- count card ------------------------------ */
+.ppd-count { display: flex; gap: clamp(12px, 2vw, 18px); align-items: center; padding: 18px; flex-wrap: wrap; }
+.ppd-count__num { font-size: clamp(26px, 5vw, 34px); font-weight: 700; line-height: 1.1; letter-spacing: -1px; }
+.ppd-count__trend { display: flex; align-items: center; gap: 6px; font-size: 12px; margin: 4px 0 8px; }
+.ppd-count__cap { font-size: 11px; color: var(--ppd-text-dim); margin-top: 6px; }
+
+/* --------------------------------- alerts -------------------------------- */
+.ppd-alerts { padding: 0; display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.ppd-alerts__head { border-bottom: 1px solid var(--ppd-border-soft); }
+.ppd-alerts__list { overflow-y: auto; flex: 1; max-height: 340px; }
+.ppd-alert-row { padding: 12px 16px; border-bottom: 1px solid var(--ppd-border-soft); transition: border-color .35s var(--ppd-ease); }
+.ppd-alert-row__meta { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; flex-wrap: wrap; }
+.ppd-alert-row__time { font-family: var(--ppd-mono); font-size: 11px; color: var(--ppd-text-dim); }
+.ppd-alert-row__zone { font-size: 11.5px; color: var(--ppd-text-dim); }
+.ppd-alert-row__msg { font-size: 12.5px; color: var(--ppd-text); }
+.ppd-level-tag { font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 4px; font-family: var(--ppd-mono); }
+
+/* ------------------------------ density map ------------------------------ */
+.ppd-section-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+.ppd-section-title { font-size: 13px; font-weight: 600; }
+.ppd-tabs { display: flex; gap: 3px; background: var(--ppd-panel2); padding: 3px; border-radius: 7px; border: 1px solid var(--ppd-border-soft); }
+.ppd-tab { font-size: 11px; padding: 4px 10px; border-radius: 5px; border: none; background: transparent; color: var(--ppd-text-dim); transition: background-color .2s var(--ppd-ease), color .2s var(--ppd-ease); }
+.ppd-grid-cells { display: grid; gap: 3px; }
+.ppd-cell { aspect-ratio: 1; border-radius: 2px; transition: background-color .35s var(--ppd-ease), opacity .35s var(--ppd-ease); }
+.ppd-legend { display: flex; justify-content: space-between; margin-top: 12px; font-size: 10.5px; color: var(--ppd-text-dim); gap: 8px; flex-wrap: wrap; }
+.ppd-legend__items { display: flex; gap: 14px; flex-wrap: wrap; }
+.ppd-legend__item { display: flex; align-items: center; gap: 5px; }
+
+/* -------------------------------- zone load ------------------------------ */
+.ppd-zones { display: flex; flex-direction: column; gap: 16px; }
+.ppd-zone__row { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 6px; }
+
+/* ------------------------------ panic chart ------------------------------ */
+.ppd-chart-bars { display: flex; align-items: flex-end; gap: 3px; height: clamp(80px, 14vh, 110px); }
+.ppd-chart-bar { flex: 1; border-radius: 2px 2px 0 0; transition: height .35s var(--ppd-ease), background-color .35s var(--ppd-ease); }
+.ppd-chart-axis { display: flex; justify-content: space-between; margin-top: 8px; font-size: 10px; color: var(--ppd-text-faint); font-family: var(--ppd-mono); }
+
+/* ------------------------------ connecting ------------------------------- */
+.ppd-connecting { padding: 40px; color: var(--ppd-text-dim); }
+
+/* =============================================================================
+   RESPONSIVE CASCADE
+   ========================================================================== */
+
+/* tablets / small laptops: sidebar drops below the feed; bottom becomes 2-up
+   with the density map spanning the full width on its own row */
+@media (max-width: 1080px) {
+  .ppd-grid { grid-template-columns: 1fr; }
+  .ppd-bottom-row { grid-template-columns: 1fr 1fr; }
+  .ppd-bottom-row > :first-child { grid-column: 1 / -1; }
+  .ppd-alerts__list { max-height: 300px; }
+}
+
+/* in that stacked range, spread the sidebar across the now-wide row:
+   status + people-count sit side by side, alerts span full width below */
+@media (max-width: 1080px) and (min-width: 761px) {
+  .ppd-grid > .ppd-col:last-child {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    align-content: start;
+    gap: var(--ppd-gap);
+  }
+  .ppd-grid > .ppd-col:last-child > :last-child { grid-column: 1 / -1; }
+  .ppd-alerts__list { max-height: 240px; }
+}
+
+/* large phones / portrait tablets: header wraps cleanly, everything stacks */
+@media (max-width: 760px) {
+  .ppd-header { justify-content: center; }
+  .ppd-scenario-wrap { order: 3; width: 100%; justify-content: center; }
+  .ppd-bottom-row { grid-template-columns: 1fr; }
+  .ppd-bottom-row > :first-child { grid-column: auto; }
+}
+
+/* phones */
+@media (max-width: 480px) {
+  .ppd-header__right { width: 100%; justify-content: space-between; }
+  .ppd-clock { text-align: left; }
+  .ppd-count { justify-content: center; text-align: center; }
+  .ppd-scenario-btn { padding: 6px 10px; }
+}
+
+/* respect users who ask for less motion — disables transitions + pulse */
+@media (prefers-reduced-motion: reduce) {
+  .ppd *, .ppd *::before, .ppd *::after {
+    transition-duration: .01ms !important;
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+
+/* =============================================================================
+   MULTI-CAMERA WALL  (equal grid + dropdown + pagination)
+   ========================================================================== */
+.ppd-cam-bar {
+  display: flex; justify-content: space-between; align-items: center;
+  gap: 12px; flex-wrap: wrap; padding: 12px 16px;
+}
+.ppd-cam-controls__left { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.ppd-cam-controls__right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+.ppd-select {
+  background: var(--ppd-panel2); color: var(--ppd-text);
+  border: 1px solid var(--ppd-border); border-radius: 8px;
+  padding: 6px 10px; font-family: var(--ppd-sans); font-size: 12px;
+  cursor: pointer; transition: border-color .2s var(--ppd-ease);
+}
+.ppd-select:hover { border-color: var(--ppd-amber); }
+.ppd-select:focus-visible { outline: 2px solid var(--ppd-amber); outline-offset: 1px; }
+
+.ppd-pager { display: flex; align-items: center; gap: 8px; }
+.ppd-pager__btn {
+  background: var(--ppd-panel2); color: var(--ppd-text);
+  border: 1px solid var(--ppd-border); border-radius: 7px;
+  padding: 4px 11px; font-size: 14px; line-height: 1;
+  transition: border-color .2s var(--ppd-ease), opacity .2s var(--ppd-ease);
+}
+.ppd-pager__btn:hover:not(:disabled) { border-color: var(--ppd-amber); }
+.ppd-pager__btn:disabled { opacity: .35; cursor: default; }
+
+/* equal-sized tiles that reflow: as many per row as fit, wrapping to new rows */
+.ppd-cam-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: var(--ppd-gap);
+}
+
+.ppd-cam-tile {
+  background: var(--ppd-panel); border: 1px solid var(--ppd-border);
+  border-radius: 12px; padding: 12px; min-width: 0;
+  display: flex; flex-direction: column; gap: 10px;
+  transition: border-color .35s var(--ppd-ease), box-shadow .35s var(--ppd-ease);
+}
+.ppd-cam-tile--alert {
+  border-color: var(--ppd-red);
+  box-shadow: 0 0 0 1px #e0574f55, 0 0 18px #e0574f22;
+}
+.ppd-cam-tile__head { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.ppd-cam-tile__head .ppd-cam-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* the live density heatmap inside each tile */
+.ppd-cam-tile__heat {
+  position: relative; display: grid; gap: 2px;
+  background: #0b0f14; border: 1px solid var(--ppd-border-soft);
+  border-radius: 8px; padding: 6px;
+}
+.ppd-cam-tile__density {
+  position: absolute; right: 8px; bottom: 8px;
+  font-size: 10.5px; color: var(--ppd-text);
+  background: #0b0f14cc; border: 1px solid var(--ppd-border-soft);
+  padding: 2px 7px; border-radius: 6px; backdrop-filter: blur(3px);
+}
+.ppd-cam-tile__foot { margin-top: auto; }
+
+.ppd-badge {
+  font-size: 10px; font-weight: 700; padding: 2px 7px;
+  border-radius: 5px; font-family: var(--ppd-mono); letter-spacing: .3px; white-space: nowrap;
+}
+
+/* on phones, let tiles go a touch narrower so two still fit side by side */
+@media (max-width: 480px) {
+  .ppd-cam-grid { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+}
+
+/* ----------------------- add feed / remove / empty ----------------------- */
+.ppd-btn {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 12.5px; font-weight: 600; padding: 7px 13px; border-radius: 8px;
+  border: 1px solid var(--ppd-border); background: var(--ppd-panel2); color: var(--ppd-text);
+  transition: border-color .2s var(--ppd-ease), background-color .2s var(--ppd-ease), opacity .2s var(--ppd-ease);
+}
+.ppd-btn:hover:not(:disabled) { border-color: var(--ppd-amber); }
+.ppd-btn:disabled { opacity: .45; cursor: default; }
+.ppd-btn--add { border-color: var(--ppd-amber); color: var(--ppd-amber); background: var(--ppd-amber-soft); }
+.ppd-btn--primary { background: var(--ppd-amber); color: #1a1407; border-color: var(--ppd-amber); }
+.ppd-btn--ghost { background: transparent; }
+.ppd-btn__plus { font-size: 16px; line-height: 1; margin-top: -1px; }
+
+.ppd-addform { padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; }
+.ppd-addform__row { display: flex; gap: 10px; flex-wrap: wrap; }
+.ppd-addform__actions { display: flex; justify-content: flex-end; gap: 10px; }
+.ppd-input {
+  flex: 1; min-width: 180px;
+  background: var(--ppd-panel2); color: var(--ppd-text);
+  border: 1px solid var(--ppd-border); border-radius: 8px;
+  padding: 9px 12px; font-family: var(--ppd-sans); font-size: 13px;
+  transition: border-color .2s var(--ppd-ease);
+}
+.ppd-input::placeholder { color: var(--ppd-text-faint); }
+.ppd-input:focus { outline: none; border-color: var(--ppd-amber); }
+
+.ppd-cam-tile__head-right { display: flex; align-items: center; gap: 6px; }
+.ppd-cam-remove {
+  width: 20px; height: 20px; border-radius: 6px; line-height: 1; font-size: 15px;
+  border: 1px solid var(--ppd-border); background: transparent; color: var(--ppd-text-dim);
+  display: grid; place-items: center; flex: none;
+  transition: color .2s var(--ppd-ease), border-color .2s var(--ppd-ease), background-color .2s var(--ppd-ease);
+}
+.ppd-cam-remove:hover { color: var(--ppd-red); border-color: var(--ppd-red); background: var(--ppd-red-soft); }
+
+.ppd-cam-empty {
+  text-align: center; color: var(--ppd-text-dim); padding: 36px 16px;
+  border-style: dashed;
+}
