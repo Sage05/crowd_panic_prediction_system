@@ -11,7 +11,7 @@ export function useLiveSocket(url = "ws://localhost:8000/ws/live") {
       ws.current.onmessage = (e) => {
   const data = JSON.parse(e.data);
   data.timestamp = new Date(data.timestamp);
-  console.log("dashboard got:", data.panicRisk); // ← add this line
+  console.log(data); // ← add this line
   setState(data);
 };
       ws.current.onclose = () => { retry = setTimeout(connect, 2000); }; // auto-reconnect
