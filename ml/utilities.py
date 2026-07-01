@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import tensorflow as tf
 from keras import layers,models
+from pathlib import Path    
 import cv2
 import torch
 import torchvision.transforms as transforms
@@ -71,8 +72,12 @@ def build_deeper_convlstm(timesteps=10, rows=32, cols=60, channels=1):
     model.add(layers.Conv3D(filters=channels, kernel_size=(3, 3, 3), padding='same', activation='linear'))
     return model
 def get_actual_convlstm():
-    convlstm4=build_deeper_convlstm()
-    convlstm4.load_weights(r"\ml\sample_model_weights\convlstm_crowd_weights_deep_net_4.weights.h5")
+    convlstm4 = build_deeper_convlstm()
+
+    weights_path = Path(__file__).parent / "sample_model_weights" / "convlstm_crowd_weights_deep_net_4.weights.h5"
+
+    convlstm4.load_weights(str(weights_path))
+
     return convlstm4
 
 
