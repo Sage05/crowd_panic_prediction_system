@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-import random
+from collections import deque
 
 from camera_manager import CameraManager
 
@@ -17,23 +17,47 @@ class DashboardState:
 
         self.payload = {}
 
+        # Persistent history
+        self.panic_history = deque([0.5] * 30, maxlen=30)
     def update(self):
 
         cams = self.camera_manager.update()
 
-        panic = random.randint(45, 70)
+        people = sum(c["count"] for c in cams)
+
+        avg_load = sum(c["load"] for c in cams) / len(cams)
+
+        panic = int(avg_load)
+
+        self.panic_history.append(panic / 100)
+
+        # Risk Class
+        if panic >= 75:
+            risk = "Critical"
+            status = "Critical"
+
+        elif panic >= 60:
+            risk = "Moderate"
+            status = "Elevated"
+
+        else:
+            risk = "Low"
+            status = "Normal"
+
+        # Trend
+        trend = panic - self.panic_history[0]
 
         self.payload = {
             "site": self.site,
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "fps": 30,
             "confidence": self.confidence,
-            "systemStatus": self.systemStatus,
-            "riskClass": "Moderate",
+            "systemStatus": status,
+            "riskClass": risk,
             "panicRisk": panic,
-            "peopleCount": sum(c["count"] for c in cams),
+            "peopleCount": people,
             "capacity": self.capacity,
-            "trend": 16,
+            "trend": trend,
             "cameras": cams,
             "zones": [
                 {
@@ -45,17 +69,14 @@ class DashboardState:
             "alerts": [
                 {
                     "time": datetime.now().strftime("%H:%M:%S"),
-                    "level": "OK",
+                    "level": "OK" if panic < 70 else "WARNING",
                     "zone": "System",
                     "msg": "Backend connected",
                 }
             ],
-            "panicHistory": [
-                random.uniform(0.3, 0.6)
-                for _ in range(30)
-            ],
+            "panicHistory": list(self.panic_history),
             "densityGrid": [
-                [random.random() for _ in range(22)]
+                [0.0 for _ in range(22)]
                 for _ in range(6)
             ],
         }
