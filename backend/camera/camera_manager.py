@@ -1,44 +1,68 @@
-from .simulated_camera import SimulatedCamera
+from ml.predictor import Camera
+from ml.utilities import density_model, forecasting_model
+
+from backend.video.video_stream import VideoStream
+
+
+CAMERA_CONFIG = {
+    "Camera_001": {
+        "zone": "North Stand",
+        "source": "demo/videos/demo1.mp4",
+    },
+    # Later:
+    # "Camera_002": {
+    #     "zone": "Gate A",
+    #     "source": "demo/videos/demo2.mp4",
+    # },
+}
 
 
 class CameraManager:
 
     def __init__(self):
 
-        self.debug = True
+        self.cameras = {}
 
-        self.cameras = [
+        for camera_id, config in CAMERA_CONFIG.items():
 
-            SimulatedCamera("Camera_001", "North Stand"),
-            SimulatedCamera("Camera_002", "Gate A"),
-            SimulatedCamera("Camera_003", "Concourse"),
-            SimulatedCamera("Camera_004", "South Ramp"),
-            SimulatedCamera("Camera_005", "East Wing"),
-            SimulatedCamera("Camera_006", "Plaza"),
+            self.cameras[camera_id] = {
 
-        ]
+                "camera": Camera(camera_id),
+
+                "stream": VideoStream(config["source"]),
+
+                "zone": config["zone"],
+
+            }
 
     def update(self):
 
-        output = []
+        payload = []
 
-        for camera in self.cameras:
+        for camera_id, obj in self.cameras.items():
 
-            camera.update()
+            frames = obj["stream"].get_next_chunk()
 
-            if self.debug:
-                print(
-                    f"{camera.camera_id:10} | "
-                    f"Load {camera.load:3}% | "
-                    f"Count {camera.count:3} | "
-                    f"Density {camera.density:.1f}"
-                )
+            if len(frames) == 0:
+                continue
 
-            output.append(
-                camera.get_dashboard_data()
+            camera = obj["camera"]
+
+            camera.receive_frames(frames)
+
+            result = camera.process_and_evaluate_stream(
+                density_model,
+                forecasting_model,
             )
 
-        if self.debug:
-            print("-" * 80)
+            result["zone"] = obj["zone"]
 
-        return output
+            payload.append(result)
+
+        return payload
+
+    def shutdown(self):
+
+        for obj in self.cameras.values():
+
+            obj["stream"].release()

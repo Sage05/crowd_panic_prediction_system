@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from collections import deque
 
-from camera.camera_manager import CameraManager
+from backend.camera.camera_manager import CameraManager
 
 
 class DashboardState:
@@ -10,39 +10,163 @@ class DashboardState:
 
         self.capacity = 8000
         self.confidence = 94
-        self.site = "Live deployment"
+        self.site = "Live Deployment"
 
         self.camera_manager = CameraManager()
 
         self.payload = {}
 
-        self.panic_history = deque([0.5] * 30, maxlen=30)
+        self.panic_history = deque([0.0] * 30, maxlen=30)
 
     def update(self):
 
-        cameras = self.camera_manager.update()
+        ml_results = self.camera_manager.update()
 
-        people = sum(cam["count"] for cam in cameras)
+        cameras = []
+        zones = []
+        alerts = []
 
-        avg_load = sum(cam["load"] for cam in cameras) / len(cameras)
+        total_people = 0
+        max_risk = 0.0
 
-        panic = int(avg_load)
+        for result in ml_results:
 
-        self.panic_history.append(panic / 100)
+            zone = result.get("zone", "Unknown")
+
+            # -----------------------------
+            # Calibration / Gathering state
+            # -----------------------------
+            if "status" in result:
+
+                cameras.append({
+                    "id": result["camera_id"],
+                    "zone": zone,
+                    "status": result["status"],
+                    "riskScore": 0.0,
+                    "load": 0,
+                    "count": 0,
+                    "density": 0.0,
+                    "isAnomaly": False,
+                    "grid": [[0.0] * 60 for _ in range(32)],
+                })
+
+                zones.append({
+                    "name": zone,
+                    "load": 0
+                })
+
+                alerts.append({
+                    "time": datetime.now().strftime("%H:%M:%S"),
+                    "level": "INFO",
+                    "zone": zone,
+                    "msg": result["status"]
+                })
+
+                continue
+
+            # -----------------------------
+            # Normal ML prediction
+            # -----------------------------
+            people = result["people_count"]
+
+            load = min(int((people / 400) * 100), 100)
+
+            density = round(people / 100.0, 1)
+
+            risk_score = min(
+                result["window_mse"] /
+                max(result["adaptive_threshold"], 1e-6),
+                1.0,
+            )
+
+            cameras.append({
+
+                "id": result["camera_id"],
+
+                "zone": zone,
+
+                "status": "LIVE",
+
+                "riskScore": risk_score,
+
+                "load": load,
+
+                "count": people,
+
+                "density": density,
+
+                "isAnomaly": result["is_anomaly"],
+
+                "grid": result["current_density_map"]
+
+            })
+
+            zones.append({
+                "name": zone,
+                "load": load
+            })
+
+            total_people += people
+
+            max_risk = max(max_risk, risk_score)
+
+            if result["is_anomaly"]:
+
+                alerts.append({
+
+                    "time": datetime.now().strftime("%H:%M:%S"),
+
+                    "level": "WARNING",
+
+                    "zone": zone,
+
+                    "msg": "Panic anomaly detected"
+
+                })
+
+        # -----------------------------
+        # System status
+        # -----------------------------
+        panic = int(max_risk * 100)
+
+        self.panic_history.append(max_risk)
 
         if panic >= 75:
-            risk = "Critical"
-            status = "Critical"
 
-        elif panic >= 60:
-            risk = "Moderate"
-            status = "Elevated"
+            risk_class = "Critical"
+            system_status = "Critical"
+
+        elif panic >= 40:
+
+            risk_class = "Moderate"
+            system_status = "Elevated"
 
         else:
-            risk = "Low"
-            status = "Normal"
 
-        trend = panic - (self.panic_history[0] * 100)
+            risk_class = "Low"
+            system_status = "Normal"
+
+        if not alerts:
+
+            alerts.append({
+
+                "time": datetime.now().strftime("%H:%M:%S"),
+
+                "level": "OK",
+
+                "zone": "System",
+
+                "msg": "No active anomalies"
+
+            })
+
+        density_grid = (
+            cameras[0]["grid"]
+            if cameras
+            else [[0.0] * 60 for _ in range(32)]
+        )
+
+        trend = panic - int(self.panic_history[0] * 100)
 
         self.payload = {
 
@@ -56,51 +180,27 @@ class DashboardState:
 
             "confidence": self.confidence,
 
-            "systemStatus": status,
+            "systemStatus": system_status,
 
-            "riskClass": risk,
+            "riskClass": risk_class,
 
             "panicRisk": panic,
 
-            "peopleCount": people,
+            "peopleCount": total_people,
 
             "capacity": self.capacity,
 
-            "trend": round(trend),
+            "trend": trend,
 
             "cameras": cameras,
 
-            "zones": [
+            "zones": zones,
 
-                {
-                    "name": c["zone"],
-                    "load": c["load"]
-                }
-
-                for c in cameras
-
-            ],
-
-            "alerts": [
-
-                {
-                    "time": datetime.now().strftime("%H:%M:%S"),
-                    "level": "OK" if panic < 70 else "WARNING",
-                    "zone": "System",
-                    "msg": "Backend connected"
-                }
-
-            ],
+            "alerts": alerts,
 
             "panicHistory": list(self.panic_history),
 
-            "densityGrid": [
-
-                [0.0 for _ in range(22)]
-
-                for _ in range(6)
-
-            ],
+            "densityGrid": density_grid,
 
         }
 
