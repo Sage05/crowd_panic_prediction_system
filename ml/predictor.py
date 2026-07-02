@@ -167,11 +167,17 @@ class Camera:
         if len(self.grid_history) > max_retained_history:
             self.grid_history = self.grid_history[-self.context_size:]
         forecasted_sequence = predicted_target[0, :, :, :, 0].tolist()
+        current_density_map = self.grid_history[-1].tolist()
+        
+
+        people_count = int(np.sum(self.grid_history[-1]))
         return {
-            "camera_id": self.camera_id,
-            "is_anomaly": is_anomaly,
-            "consecutive_breaches": self.consecutive_breaches,
-            "window_mse": float(current_window_mse),
-            "adaptive_threshold": float(adaptive_threshold),
-            "forecasted_grids": forecasted_sequence,
-        }
+    "camera_id": self.camera_id,
+    "is_anomaly": is_anomaly,
+    "consecutive_breaches": self.consecutive_breaches,
+    "window_mse": float(current_window_mse),
+    "adaptive_threshold": float(adaptive_threshold),
+    "forecasted_grids": forecasted_sequence,
+    "current_density_map": current_density_map,
+    "people_count": people_count,
+}

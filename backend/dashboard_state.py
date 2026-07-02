@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from collections import deque
 
-from camera_manager import CameraManager
+from camera.camera_manager import CameraManager
 
 
 class DashboardState:
@@ -11,27 +11,25 @@ class DashboardState:
         self.capacity = 8000
         self.confidence = 94
         self.site = "Live deployment"
-        self.systemStatus = "Elevated"
 
         self.camera_manager = CameraManager()
 
         self.payload = {}
 
-        # Persistent history
         self.panic_history = deque([0.5] * 30, maxlen=30)
+
     def update(self):
 
-        cams = self.camera_manager.update()
+        cameras = self.camera_manager.update()
 
-        people = sum(c["count"] for c in cams)
+        people = sum(cam["count"] for cam in cameras)
 
-        avg_load = sum(c["load"] for c in cams) / len(cams)
+        avg_load = sum(cam["load"] for cam in cameras) / len(cameras)
 
         panic = int(avg_load)
 
         self.panic_history.append(panic / 100)
 
-        # Risk Class
         if panic >= 75:
             risk = "Critical"
             status = "Critical"
@@ -44,42 +42,68 @@ class DashboardState:
             risk = "Low"
             status = "Normal"
 
-        # Trend
-        trend = panic - self.panic_history[0]
+        trend = panic - (self.panic_history[0] * 100)
 
         self.payload = {
+
             "site": self.site,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
+
+            "timestamp": datetime.now(
+                timezone.utc
+            ).isoformat(),
+
             "fps": 30,
+
             "confidence": self.confidence,
+
             "systemStatus": status,
+
             "riskClass": risk,
+
             "panicRisk": panic,
+
             "peopleCount": people,
+
             "capacity": self.capacity,
-            "trend": trend,
-            "cameras": cams,
+
+            "trend": round(trend),
+
+            "cameras": cameras,
+
             "zones": [
+
                 {
                     "name": c["zone"],
                     "load": c["load"]
                 }
-                for c in cams
+
+                for c in cameras
+
             ],
+
             "alerts": [
+
                 {
                     "time": datetime.now().strftime("%H:%M:%S"),
                     "level": "OK" if panic < 70 else "WARNING",
                     "zone": "System",
-                    "msg": "Backend connected",
+                    "msg": "Backend connected"
                 }
+
             ],
+
             "panicHistory": list(self.panic_history),
+
             "densityGrid": [
+
                 [0.0 for _ in range(22)]
+
                 for _ in range(6)
+
             ],
+
         }
 
     def to_dict(self):
+
         return self.payload
