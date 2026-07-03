@@ -48,6 +48,7 @@ class DashboardState:
                     "density": 0.0,
                     "isAnomaly": False,
                     "grid": [[0.0] * 60 for _ in range(32)],
+                    "forecasted_grids": [], # Added empty fallback for calibration state
                 })
 
                 zones.append({
@@ -97,8 +98,9 @@ class DashboardState:
 
                 "isAnomaly": result["is_anomaly"],
 
-                "grid": result["current_density_map"]
+                "grid": result["current_density_map"],
 
+                "forecasted_grids": result.get("forecasted_grids", []), # Added forecast sequence mapping
             })
 
             zones.append({
@@ -158,7 +160,7 @@ class DashboardState:
 
                 "msg": "No active anomalies"
 
-            })
+                })
 
         density_grid = (
             cameras[0]["grid"]
