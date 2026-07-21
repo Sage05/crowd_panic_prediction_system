@@ -5,6 +5,8 @@ __pycache__/
 
 # Virtual Environment
 venv/
+.venv/
+backend/venv/
 
 # VS Code
 .vscode/
@@ -43,3 +45,13 @@ build/
 
 # Generated tracking output
 data/tracking_data.csv
+
+# Docker
+.docker/
+
+# Python cache
+.pytest_cache/
+.mypy_cache/
+
+# Local files
+structure.txt

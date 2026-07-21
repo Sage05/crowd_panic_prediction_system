@@ -67,6 +67,7 @@ class Camera:
                 stacked_batch = torch.stack(frame_batch).to(self.device)
                 with torch.no_grad():
                     outputs = density_model(stacked_batch)
+
                 batch_np = outputs.detach().cpu().numpy()[:, 0, :, :]
                 for i in range(batch_np.shape[0]):
                     density_maps.append(batch_np[i].astype('float16'))
@@ -74,9 +75,14 @@ class Camera:
 
         if frame_batch:
             stacked_batch = torch.stack(frame_batch).to(self.device)
+            
+            print("Input device :", stacked_batch.device)
+            print("Model device :", next(density_model.parameters()).device)
             with torch.no_grad():
                 outputs = density_model(stacked_batch)
+
             batch_np = outputs.detach().cpu().numpy()[:, 0, :, :]
+            
             for i in range(batch_np.shape[0]):
                 density_maps.append(batch_np[i].astype('float16'))
 
@@ -146,6 +152,7 @@ class Camera:
             self.running_std = np.std(self.calibration_scores) * 0.1  # Matches your exact high-accuracy setup
             
             self.is_calibrated = True
+            print(f"✅ [{self.camera_id}] Calibration complete.")
             is_anomaly = False
             adaptive_threshold = self.running_mean + (self.threshold_multiplier * self.running_std)
             

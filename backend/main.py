@@ -40,7 +40,10 @@ async def update_live_state():
             state.update()
 
         except Exception as e:
+            import traceback
+
             print(f"[Backend Error] {e}")
+            traceback.print_exc()
 
         await asyncio.sleep(1)
 

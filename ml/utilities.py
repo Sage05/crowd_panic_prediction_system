@@ -39,16 +39,19 @@ class CSRNet(nn.Module):
                 in_channels = v
         return nn.Sequential(*layers)
 def get_weights_for_csrnet():
-    model_alt = CSRNet()
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# 3. Stream the weights directly from the URL you provided
+    model_alt = CSRNet().to(device)
     weights_url = "https://huggingface.co/muasifk/CSRNet/resolve/main/CSRNet.pth"
-    state_dict = torch.hub.load_state_dict_from_url(weights_url, map_location="cpu", progress=True)
-    # 4. Load states into model
+
+    state_dict = torch.hub.load_state_dict_from_url(
+        weights_url,
+        map_location=device,
+        progress=True
+    )
     model_alt.load_state_dict(state_dict)
-    # model_alt.to("cuda")
     model_alt.eval()
-    print("Alternative CSRNet model weights successfully loaded from URL!")
+
     return model_alt
 def build_deeper_convlstm(timesteps=10, rows=32, cols=60, channels=1):
     model = models.Sequential()

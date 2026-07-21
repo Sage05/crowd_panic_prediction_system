@@ -1,0 +1,27 @@
+# API
+fastapi
+uvicorn[standard]
+python-dotenv
+
+# ML
+numpy
+scipy
+scikit-learn
+pandas
+
+# Computer Vision
+opencv-python
+pillow
+ultralytics==8.4.66
+
+# PyTorch
+torch==2.11.0+cu128
+torchvision==0.26.0+cu128
+
+# TensorFlow
+tensorflow==2.21.0
+
+# Utilities
+PyYAML
+requests
+matplotlib
